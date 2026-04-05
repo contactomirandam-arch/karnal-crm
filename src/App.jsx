@@ -61,7 +61,7 @@ export default function App() {
     };
 
     try {
-      await fetch("https://n8n-ekxc.onrender.com/webhook/nuevo-lead", {
+      await fetch("https://n8n-ekxc.onrender.com/webhook-test/nuevo-lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nuevo)
