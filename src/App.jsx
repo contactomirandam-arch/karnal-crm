@@ -4,8 +4,8 @@ const Card = ({ children }) => (
   <div className="bg-white rounded-2xl shadow p-3">{children}</div>
 );
 
-const Button = ({ children, onClick }) => (
-  <button onClick={onClick} className="bg-black text-white px-3 py-1 rounded-xl text-sm">
+const Button = ({ children, onClick, disabled }) => (
+  <button onClick={onClick} disabled={disabled} className="bg-black text-white px-3 py-1 rounded-xl text-sm disabled:opacity-50">
     {children}
   </button>
 );
@@ -19,13 +19,13 @@ export default function App() {
 
   const [leads, setLeads] = useState([]);
   const [contadorAsignacion, setContadorAsignacion] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   const [nuevoLead, setNuevoLead] = useState({ nombre: "", telefono: "" });
 
   const [leadActivo, setLeadActivo] = useState(null);
   const [comentario, setComentario] = useState("");
 
-  // 🔥 GUARDADO LOCAL (no perder datos)
   useEffect(() => {
     const data = localStorage.getItem("leads");
     if (data) setLeads(JSON.parse(data));
@@ -42,14 +42,17 @@ export default function App() {
 
   const asignarAutomatico = () => {
     const agente = AGENTES[contadorAsignacion % AGENTES.length];
-    setContadorAsignacion(contadorAsignacion + 1);
+    setContadorAsignacion((prev) => prev + 1);
     return agente;
   };
 
   const addLead = async () => {
-    if (!nuevoLead.nombre) return;
+    if (!nuevoLead.nombre || loading) return;
+
+    setLoading(true);
 
     const nuevo = {
+      id: Date.now(),
       ...nuevoLead,
       estado: "Nuevo",
       asesor: asignarAutomatico(),
@@ -57,48 +60,55 @@ export default function App() {
       fecha: new Date().toISOString()
     };
 
-    // 🔥 ENVÍO A N8N (REEMPLAZA URL)
     try {
-      await fetch("https://n8n-ekxc.onrender.com:5678/webhook/nuevo-lead", {
+      await fetch("https://n8n-ekxc.onrender.com/webhook/nuevo-lead", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(nuevo)
       });
     } catch (error) {
       console.error("Error enviando a n8n", error);
     }
 
-    // Guardado local
-    setLeads([...leads, nuevo]);
+    setLeads((prev) => [...prev, nuevo]);
     setNuevoLead({ nombre: "", telefono: "" });
+    setLoading(false);
   };
 
-  const moverLead = (index, estado) => {
-    const updated = [...leads];
-    updated[index].estado = estado;
-    setLeads(updated);
+  const moverLead = (id, estado) => {
+    setLeads((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, estado } : l))
+    );
   };
 
   const agregarComentario = () => {
-    if (!comentario) return;
+    if (!comentario || leadActivo === null) return;
 
-    const updated = [...leads];
-    updated[leadActivo].comentarios.push({
-      texto: comentario,
-      fecha: new Date().toLocaleString(),
-      user: user.user
-    });
+    setLeads((prev) =>
+      prev.map((l) =>
+        l.id === leadActivo
+          ? {
+              ...l,
+              comentarios: [
+                ...l.comentarios,
+                {
+                  texto: comentario,
+                  fecha: new Date().toLocaleString(),
+                  user: user.user
+                }
+              ]
+            }
+          : l
+      )
+    );
 
-    setLeads(updated);
     setComentario("");
   };
 
-  const asignarManual = (index, agente) => {
-    const updated = [...leads];
-    updated[index].asesor = agente;
-    setLeads(updated);
+  const asignarManual = (id, agente) => {
+    setLeads((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, asesor: agente } : l))
+    );
   };
 
   if (!logged) {
@@ -124,7 +134,7 @@ export default function App() {
         <h2 className="mb-2">Nuevo Lead</h2>
         <input placeholder="Nombre" className="border p-2 mr-2" value={nuevoLead.nombre} onChange={(e) => setNuevoLead({ ...nuevoLead, nombre: e.target.value })} />
         <input placeholder="Teléfono" className="border p-2 mr-2" value={nuevoLead.telefono} onChange={(e) => setNuevoLead({ ...nuevoLead, telefono: e.target.value })} />
-        <Button onClick={addLead}>Guardar</Button>
+        <Button onClick={addLead} disabled={loading}>{loading ? "Guardando..." : "Guardar"}</Button>
       </Card>
 
       <div className="flex gap-3 mt-4 overflow-x-auto">
@@ -132,10 +142,9 @@ export default function App() {
           <div key={col} className="min-w-[250px]">
             <h3 className="text-center mb-2">{col}</h3>
             {leads
-              .map((l, i) => ({ ...l, index: i }))
               .filter((l) => l.estado === col)
               .map((l) => (
-                <Card key={l.index}>
+                <Card key={l.id}>
                   <p className="font-bold">{l.nombre}</p>
                   <p className="text-sm">{l.telefono}</p>
                   <p className="text-xs">Asesor: {l.asesor}</p>
@@ -143,7 +152,7 @@ export default function App() {
                   <select
                     className="border text-xs mt-1"
                     value={l.asesor}
-                    onChange={(e) => asignarManual(l.index, e.target.value)}
+                    onChange={(e) => asignarManual(l.id, e.target.value)}
                   >
                     {AGENTES.map((a) => (
                       <option key={a}>{a}</option>
@@ -152,13 +161,13 @@ export default function App() {
 
                   <div className="flex flex-wrap gap-1 mt-2">
                     {columnas.map((c) => (
-                      <button key={c} onClick={() => moverLead(l.index, c)} className="text-xs border px-1">
+                      <button key={c} onClick={() => moverLead(l.id, c)} className="text-xs border px-1">
                         {c}
                       </button>
                     ))}
                   </div>
 
-                  <Button onClick={() => setLeadActivo(l.index)}>Ver</Button>
+                  <Button onClick={() => setLeadActivo(l.id)}>Ver</Button>
                 </Card>
               ))}
           </div>
@@ -170,17 +179,26 @@ export default function App() {
           <div className="bg-white p-4 rounded-xl w-96">
             <h2 className="mb-2">Detalle Lead</h2>
 
-            <p><b>{leads[leadActivo].nombre}</b></p>
-            <p>{leads[leadActivo].telefono}</p>
+            {(() => {
+              const lead = leads.find((l) => l.id === leadActivo);
+              if (!lead) return null;
 
-            <h3 className="mt-3">Comentarios</h3>
-            <div className="max-h-40 overflow-y-auto">
-              {leads[leadActivo].comentarios.map((c, i) => (
-                <div key={i} className="border p-1 mb-1 text-xs">
-                  <b>{c.user}</b>: {c.texto}
-                </div>
-              ))}
-            </div>
+              return (
+                <>
+                  <p><b>{lead.nombre}</b></p>
+                  <p>{lead.telefono}</p>
+
+                  <h3 className="mt-3">Comentarios</h3>
+                  <div className="max-h-40 overflow-y-auto">
+                    {lead.comentarios.map((c, i) => (
+                      <div key={i} className="border p-1 mb-1 text-xs">
+                        <b>{c.user}</b>: {c.texto}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
 
             <input
               placeholder="Escribir comentario"
