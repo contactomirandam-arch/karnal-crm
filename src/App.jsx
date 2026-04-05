@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 
 const Card = ({ children }) => (
   <div className="bg-white rounded-2xl shadow p-3">{children}</div>
@@ -24,6 +24,16 @@ export default function App() {
 
   const [leadActivo, setLeadActivo] = useState(null);
   const [comentario, setComentario] = useState("");
+
+  // 🔥 GUARDADO LOCAL (no perder datos)
+  useEffect(() => {
+    const data = localStorage.getItem("leads");
+    if (data) setLeads(JSON.parse(data));
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("leads", JSON.stringify(leads));
+  }, [leads]);
 
   const login = () => {
     setLogged(true);
@@ -96,7 +106,6 @@ export default function App() {
     <div className="p-4 bg-gray-100 min-h-screen">
       <h1 className="text-xl mb-4">Kanal CRM PRO</h1>
 
-      {/* Nuevo Lead */}
       <Card>
         <h2 className="mb-2">Nuevo Lead</h2>
         <input placeholder="Nombre" className="border p-2 mr-2" value={nuevoLead.nombre} onChange={(e) => setNuevoLead({ ...nuevoLead, nombre: e.target.value })} />
@@ -104,7 +113,6 @@ export default function App() {
         <Button onClick={addLead}>Guardar</Button>
       </Card>
 
-      {/* Pipeline */}
       <div className="flex gap-3 mt-4 overflow-x-auto">
         {columnas.map((col) => (
           <div key={col} className="min-w-[250px]">
@@ -143,7 +151,6 @@ export default function App() {
         ))}
       </div>
 
-      {/* Modal simple */}
       {leadActivo !== null && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
           <div className="bg-white p-4 rounded-xl w-96">
