@@ -46,30 +46,35 @@ export default function App() {
     return agente;
   };
 
- const addLead = async () => {
-  if (!nuevoLead.nombre) return;
+  const addLead = async () => {
+    if (!nuevoLead.nombre) return;
 
-  const nuevo = {
-    ...nuevoLead,
-    estado: "Nuevo",
-    asesor: asignarAutomatico(),
-    fecha: new Date().toISOString()
+    const nuevo = {
+      ...nuevoLead,
+      estado: "Nuevo",
+      asesor: asignarAutomatico(),
+      comentarios: [],
+      fecha: new Date().toISOString()
+    };
+
+    // 🔥 ENVÍO A N8N (REEMPLAZA URL)
+    try {
+      await fetch("https://n8n-ekxc.onrender.com:5678/webhook/nuevo-lead", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(nuevo)
+      });
+    } catch (error) {
+      console.error("Error enviando a n8n", error);
+    }
+
+    // Guardado local
+    setLeads([...leads, nuevo]);
+    setNuevoLead({ nombre: "", telefono: "" });
   };
 
-  // 🔥 ENVÍA A N8N
-  await fetch("https://n8n-ekxc.onrender.com/webhook-test/nuevo-lead", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(nuevo)
-  });
-
-  // local (opcional)
-  setLeads([...leads, { ...nuevo, comentarios: [] }]);
-
-  setNuevoLead({ nombre: "", telefono: "" });
-};
   const moverLead = (index, estado) => {
     const updated = [...leads];
     updated[index].estado = estado;
